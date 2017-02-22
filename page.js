@@ -9,6 +9,7 @@
    */
 
   var pathtoRegexp = require('path-to-regexp');
+  var Event = require('micro-event');
 
   /**
    * Module exports.
@@ -105,6 +106,8 @@
     }
   }
 
+  page.event = Event;
+
   /**
    * Callback functions.
    */
@@ -197,6 +200,13 @@
    */
 
   page.show = function(path, state, dispatch, push) {
+
+    var event = page.event.trigger('beforeRedirect');
+    debugger;
+    if (!event) {
+      return;
+    }
+
     var ctx = new Context(path, state);
     page.current = ctx.path;
     if (false !== dispatch) page.dispatch(ctx);
@@ -386,7 +396,7 @@
     this.path = path.replace(base, '') || '/';
     if (hashbang) this.path = this.path.replace('#!', '') || '/';
 
-    this.title = document.title;
+    this.title = (typeof document !== 'undefined' && document.title);
     this.state = state || {};
     this.state.path = path;
     this.querystring = ~i ? decodeURLEncodedURIComponent(path.slice(i + 1)) : '';
@@ -624,95 +634,109 @@
   page.sameOrigin = sameOrigin;
 
 }).call(this,require('_process'))
-},{"_process":2,"path-to-regexp":3}],2:[function(require,module,exports){
-// shim for using process in browser
-
-var process = module.exports = {};
-
-process.nextTick = (function () {
-    var canSetImmediate = typeof window !== 'undefined'
-    && window.setImmediate;
-    var canMutationObserver = typeof window !== 'undefined'
-    && window.MutationObserver;
-    var canPost = typeof window !== 'undefined'
-    && window.postMessage && window.addEventListener
-    ;
-
-    if (canSetImmediate) {
-        return function (f) { return window.setImmediate(f) };
-    }
-
-    var queue = [];
-
-    if (canMutationObserver) {
-        var hiddenDiv = document.createElement("div");
-        var observer = new MutationObserver(function () {
-            var queueList = queue.slice();
-            queue.length = 0;
-            queueList.forEach(function (fn) {
-                fn();
-            });
-        });
-
-        observer.observe(hiddenDiv, { attributes: true });
-
-        return function nextTick(fn) {
-            if (!queue.length) {
-                hiddenDiv.setAttribute('yes', 'no');
-            }
-            queue.push(fn);
-        };
-    }
-
-    if (canPost) {
-        window.addEventListener('message', function (ev) {
-            var source = ev.source;
-            if ((source === window || source === null) && ev.data === 'process-tick') {
-                ev.stopPropagation();
-                if (queue.length > 0) {
-                    var fn = queue.shift();
-                    fn();
-                }
-            }
-        }, true);
-
-        return function nextTick(fn) {
-            queue.push(fn);
-            window.postMessage('process-tick', '*');
-        };
-    }
-
-    return function nextTick(fn) {
-        setTimeout(fn, 0);
-    };
-})();
-
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-// TODO(shtylman)
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
+},{"_process":5,"micro-event":3,"path-to-regexp":4}],2:[function(require,module,exports){
+module.exports = Array.isArray || function (arr) {
+  return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
 },{}],3:[function(require,module,exports){
+(function() {
+    function Emitter() {
+        var e = Object.create(emitter);
+        e.events = {};
+        return e;
+    }
+
+    function Event(type) {
+        this.type = type;
+        this.timeStamp = new Date();
+    }
+
+    var emitter = {};
+
+    emitter.on = function(type, handler) {
+        if (this.events.hasOwnProperty(type)) {
+            this.events[type].push(handler);
+        } else {
+            this.events[type] = [handler];
+        }
+        return this;
+    };
+
+    emitter.off = function(type, handler) {
+        if (arguments.length === 0) {
+            return this._offAll();
+        }
+        if (handler === undefined) {
+            return this._offByType(type);
+        }
+        return this._offByHandler(type, handler);
+    };
+
+    emitter.trigger = function(event, args) {
+        if (!(event instanceof Event)) {
+            event = new Event(event);
+        }
+        return this._dispatch(event, args);
+    };
+
+    emitter._dispatch = function(event, args) {
+        if (!this.events.hasOwnProperty(event.type)) return;
+        args = args || [];
+        args.unshift(event);
+
+        var handlers = this.events[event.type] || [];
+        handlers.forEach(handler => handler.apply(null, args));
+        return this;
+    };
+
+    emitter._offByHandler = function(type, handler) {
+        if (!this.events.hasOwnProperty(type)) return;
+        var i = this.events[type].indexOf(handler);
+        if (i > -1) {
+            this.events[type].splice(i, 1);
+        }
+        return this;
+    };
+
+    emitter._offByType = function(type) {
+        if (this.events.hasOwnProperty(type)) {
+            delete this.events[type];
+        }
+        return this;
+    };
+
+    emitter._offAll = function() {
+        this.events = {};
+        return this;
+    };
+
+    Emitter.Event = Event;
+
+    Emitter.mixin = function(obj, arr){
+        var emitter = new Emitter();
+        arr.map(function(name){
+            obj[name] = function(){
+                return emitter[name].apply(emitter, arguments);
+            };
+        });
+    };
+
+    // CommonJS
+    if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+        module.exports = Emitter;
+    }
+    // Browser
+    else if (typeof define === 'function' && define.amd) {
+        define('Emitter', [], function() {
+            return Emitter;
+        });
+    } else {
+        window.Emitter = Emitter;
+    }
+})();
+
+},{}],4:[function(require,module,exports){
 var isarray = require('isarray')
 
 /**
@@ -1104,9 +1128,92 @@ function pathToRegexp (path, keys, options) {
   return stringToRegexp(path, keys, options)
 }
 
-},{"isarray":4}],4:[function(require,module,exports){
-module.exports = Array.isArray || function (arr) {
-  return Object.prototype.toString.call(arr) == '[object Array]';
+},{"isarray":2}],5:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+process.nextTick = (function () {
+    var canSetImmediate = typeof window !== 'undefined'
+    && window.setImmediate;
+    var canMutationObserver = typeof window !== 'undefined'
+    && window.MutationObserver;
+    var canPost = typeof window !== 'undefined'
+    && window.postMessage && window.addEventListener
+    ;
+
+    if (canSetImmediate) {
+        return function (f) { return window.setImmediate(f) };
+    }
+
+    var queue = [];
+
+    if (canMutationObserver) {
+        var hiddenDiv = document.createElement("div");
+        var observer = new MutationObserver(function () {
+            var queueList = queue.slice();
+            queue.length = 0;
+            queueList.forEach(function (fn) {
+                fn();
+            });
+        });
+
+        observer.observe(hiddenDiv, { attributes: true });
+
+        return function nextTick(fn) {
+            if (!queue.length) {
+                hiddenDiv.setAttribute('yes', 'no');
+            }
+            queue.push(fn);
+        };
+    }
+
+    if (canPost) {
+        window.addEventListener('message', function (ev) {
+            var source = ev.source;
+            if ((source === window || source === null) && ev.data === 'process-tick') {
+                ev.stopPropagation();
+                if (queue.length > 0) {
+                    var fn = queue.shift();
+                    fn();
+                }
+            }
+        }, true);
+
+        return function nextTick(fn) {
+            queue.push(fn);
+            window.postMessage('process-tick', '*');
+        };
+    }
+
+    return function nextTick(fn) {
+        setTimeout(fn, 0);
+    };
+})();
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
 };
 
 },{}]},{},[1])(1)

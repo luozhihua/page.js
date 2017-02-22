@@ -7,6 +7,7 @@
    */
 
   var pathtoRegexp = require('path-to-regexp');
+  var Event = require('micro-event');
 
   /**
    * Module exports.
@@ -103,6 +104,12 @@
     }
   }
 
+  page.on = function() { return Event.on.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+  page.off = function() { return Event.off.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+  page.emit =
+  page.trigger = function() { return Event.trigger.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+
+
   /**
    * Callback functions.
    */
@@ -195,6 +202,13 @@
    */
 
   page.show = function(path, state, dispatch, push) {
+
+    var event = page.event.trigger('beforeRedirect');
+    debugger;
+    if (!event) {
+      return;
+    }
+
     var ctx = new Context(path, state);
     page.current = ctx.path;
     if (false !== dispatch) page.dispatch(ctx);
