@@ -106,7 +106,11 @@
     }
   }
 
-  page.event = Event;
+  page.on = function() { return Event.on.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+  page.off = function() { return Event.off.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+  page.emit =
+  page.trigger = function() { return Event.trigger.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+
 
   /**
    * Callback functions.

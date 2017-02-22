@@ -20,8 +20,7 @@
     "make": "browserify index.js --standalone page -o page.js"
   },
   "dependencies": {
-    "path-to-regexp": "~1.2.1",
-    "micro-event": "*"
+    "path-to-regexp": "~1.2.1"
   },
   "devDependencies": {
     "browserify": "^6.3.2",
