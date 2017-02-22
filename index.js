@@ -195,13 +195,6 @@
    */
 
   page.show = function(path, state, dispatch, push) {
-
-    var event = page.event.trigger('beforeRedirect');
-    debugger;
-    if (!event) {
-      return;
-    }
-
     var ctx = new Context(path, state);
     page.current = ctx.path;
     if (false !== dispatch) page.dispatch(ctx);
