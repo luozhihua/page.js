@@ -5,3 +5,6 @@ coverage.html
 npm-debug.log
 index-cov.js
 .DS_Store
+*.sublime-*
+npm-debug.log
+npm-debug.log*
