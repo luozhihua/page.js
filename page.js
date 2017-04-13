@@ -1,167 +1,167 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.page=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 (function (process){
-  /* globals require, module */
+/* globals require, module */
 
-  'use strict';
+'use strict';
 
-  /**
-   * Module dependencies.
-   */
+/**
+ * Module dependencies.
+ */
 
-  var pathtoRegexp = require('path-to-regexp');
-  var Event = require('micro-event');
+var pathtoRegexp = require('path-to-regexp');
+var Event = require('respondent-emitter').default;
+var History = require('history').default;
 
-  /**
-   * Module exports.
-   */
+window._history = window.history;
+window.his = new History();
 
-  module.exports = page;
+/**
+ * Module exports.
+ */
 
-  /**
-   * Detect click event
-   */
-  var clickEvent = ('undefined' !== typeof document) && document.ontouchstart ? 'touchstart' : 'click';
+module.exports = page;
 
-  /**
-   * To work properly with the URL
-   * history.location generated polyfill in https://github.com/devote/HTML5-History-API
-   */
+/**
+ * Detect click event
+ */
+var clickEvent = ('undefined' !== typeof document) && document.ontouchstart ? 'touchstart' : 'click';
 
-  var location = ('undefined' !== typeof window) && (window.history.location || window.location);
+/**
+ * To work properly with the URL
+ * history.location generated polyfill in https://github.com/devote/HTML5-History-API
+ */
 
-  /**
-   * Perform initial dispatch.
-   */
+var location = ('undefined' !== typeof window) && (window.history.location || window.location);
 
-  var dispatch = true;
+/**
+ * Perform initial dispatch.
+ */
+
+var dispatch = true;
 
 
-  /**
-   * Decode URL components (query string, pathname, hash).
-   * Accommodates both regular percent encoding and x-www-form-urlencoded format.
-   */
-  var decodeURLComponents = true;
+/**
+ * Decode URL components (query string, pathname, hash).
+ * Accommodates both regular percent encoding and x-www-form-urlencoded format.
+ */
+var decodeURLComponents = true;
 
-  /**
-   * Base path.
-   */
+/**
+ * Base path.
+ */
 
-  var base = '';
+var base = '';
 
-  /**
-   * Running flag.
-   */
+/**
+ * Running flag.
+ */
 
-  var running;
+var running;
 
-  /**
-   * HashBang option
-   */
+/**
+ * HashBang option
+ */
 
-  var hashbang = false;
+var hashbang = false;
 
-  /**
-   * Previous context, for capturing
-   * page exit events.
-   */
+/**
+ * Previous context, for capturing
+ * page exit events.
+ */
 
-  var prevContext;
+var prevContext;
 
-  /**
-   * Register `path` with callback `fn()`,
-   * or route `path`, or redirection,
-   * or `page.start()`.
-   *
-   *   page(fn);
-   *   page('*', fn);
-   *   page('/user/:id', load, user);
-   *   page('/user/' + user.id, { some: 'thing' });
-   *   page('/user/' + user.id);
-   *   page('/from', '/to')
-   *   page();
-   *
-   * @param {string|!Function|!Object} path
-   * @param {Function=} fn
-   * @api public
-   */
+/**
+ * Register `path` with callback `fn()`,
+ * or route `path`, or redirection,
+ * or `page.start()`.
+ *
+ *   page(fn);
+ *   page('*', fn);
+ *   page('/user/:id', load, user);
+ *   page('/user/' + user.id, { some: 'thing' });
+ *   page('/user/' + user.id);
+ *   page('/from', '/to')
+ *   page();
+ *
+ * @param {string|!Function|!Object} path
+ * @param {Function=} fn
+ * @api public
+ */
 
-  function page(path, fn) {
+function page(path, fn) {
     // <callback>
     if ('function' === typeof path) {
-      return page('*', path);
+        return page('*', path);
     }
 
     // route <path> to <callback ...>
     if ('function' === typeof fn) {
-      var route = new Route(/** @type {string} */ (path));
-      for (var i = 1; i < arguments.length; ++i) {
-        page.callbacks.push(route.middleware(arguments[i]));
-      }
-      // show <path> with [state]
+        var route = new Route(/** @type {string} */ (path));
+        for (var i = 1; i < arguments.length; ++i) {
+            page.callbacks.push(route.middleware(arguments[i]));
+        }
+        // show <path> with [state]
     } else if ('string' === typeof path) {
-      page['string' === typeof fn ? 'redirect' : 'show'](path, fn);
-      // start [options]
+        page['string' === typeof fn ? 'redirect' : 'show'](path, fn);
+        // start [options]
     } else {
-      page.start(path);
+        page.start(path);
     }
-  }
+}
 
-  page.on = function() { return Event.on.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
-  page.off = function() { return Event.off.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
-  page.emit =
-  page.trigger = function() { return Event.trigger.apply(Event, Array.prototype.slice.call(arguments, arguments.length)); };
+page.event = new Event();
 
+/**
+ * Callback functions.
+ */
 
-  /**
-   * Callback functions.
-   */
+page.callbacks = [];
+page.exits = [];
 
-  page.callbacks = [];
-  page.exits = [];
+/**
+ * Current path being processed
+ * @type {string}
+ */
+page.current = '';
 
-  /**
-   * Current path being processed
-   * @type {string}
-   */
-  page.current = '';
+/**
+ * Number of pages navigated to.
+ * @type {number}
+ *
+ *     page.len == 0;
+ *     page('/login');
+ *     page.len == 1;
+ */
 
-  /**
-   * Number of pages navigated to.
-   * @type {number}
-   *
-   *     page.len == 0;
-   *     page('/login');
-   *     page.len == 1;
-   */
+page.len = 0;
 
-  page.len = 0;
+/**
+ * Get or set basepath to `path`.
+ *
+ * @param {string} path
+ * @api public
+ */
 
-  /**
-   * Get or set basepath to `path`.
-   *
-   * @param {string} path
-   * @api public
-   */
-
-  page.base = function(path) {
+page.base = function (path) {
     if (0 === arguments.length) return base;
     base = path;
-  };
+};
 
-  /**
-   * Bind with the given `options`.
-   *
-   * Options:
-   *
-   *    - `click` bind to click events [true]
-   *    - `popstate` bind to popstate [true]
-   *    - `dispatch` perform initial dispatch [true]
-   *
-   * @param {Object} options
-   * @api public
-   */
+/**
+ * Bind with the given `options`.
+ *
+ * Options:
+ *
+ *    - `click` bind to click events [true]
+ *    - `popstate` bind to popstate [true]
+ *    - `dispatch` perform initial dispatch [true]
+ *
+ * @param {Object} options
+ * @api public
+ */
 
-  page.start = function(options) {
+page.start = function (options) {
     options = options || {};
     if (running) return;
     running = true;
@@ -169,230 +169,254 @@
     if (false === options.decodeURLComponents) decodeURLComponents = false;
     if (false !== options.popstate) window.addEventListener('popstate', onpopstate, false);
     if (false !== options.click) {
-      document.addEventListener(clickEvent, onclick, false);
+        document.addEventListener(clickEvent, onclick, false);
     }
     if (true === options.hashbang) hashbang = true;
     if (!dispatch) return;
     var url = (hashbang && ~location.hash.indexOf('#!')) ? location.hash.substr(2) + location.search : location.pathname + location.search + location.hash;
     page.replace(url, null, true, dispatch);
-  };
+};
 
-  /**
-   * Unbind click and popstate event handlers.
-   *
-   * @api public
-   */
+/**
+ * Unbind click and popstate event handlers.
+ *
+ * @api public
+ */
 
-  page.stop = function() {
+page.stop = function () {
     if (!running) return;
     page.current = '';
     page.len = 0;
     running = false;
     document.removeEventListener(clickEvent, onclick, false);
     window.removeEventListener('popstate', onpopstate, false);
-  };
+};
 
-  /**
-   * Show `path` with optional `state` object.
-   *
-   * @param {string} path
-   * @param {Object=} state
-   * @param {boolean=} dispatch
-   * @param {boolean=} push
-   * @return {!Context}
-   * @api public
-   */
+/**
+ * Show `path` with optional `state` object.
+ *
+ * @param {string} path
+ * @param {Object=} state
+ * @param {boolean=} dispatch
+ * @param {boolean=} push
+ * @return {!Context}
+ * @api public
+ */
 
-  page.show = function(path, state, dispatch, push) {
+page.show = function (path, state, dispatch, push) {
 
-    var event = page.event.trigger('beforeRedirect');
-    debugger;
-    if (!event) {
-      return;
+    var from = (hashbang && ~location.hash.indexOf('#!')) ? location.hash.substr(2) + location.search : location.pathname + location.search + location.hash;
+    var emited = page.event.emit('beforeChange');
+    if (emited === false) {
+        if (push === false) {
+            page.cancel(path, state, page.current);
+        }
+        return;
     }
 
-    var ctx = new Context(path, state);
+    var ctx = new Context(path, state, from);
+
     page.current = ctx.path;
     if (false !== dispatch) page.dispatch(ctx);
     if (false !== ctx.handled && false !== push) ctx.pushState();
     return ctx;
-  };
+};
 
-  /**
-   * Goes back in the history
-   * Back should always let the current route push state and then go back.
-   *
-   * @param {string} path - fallback path to go back if no more history exists, if undefined defaults to page.base
-   * @param {Object=} state
-   * @api public
-   */
+page.cancel = function (path, state, from) {
+    // if (hashbang) {
+    //     window.location.hash = '!' + from;
+    // } else {
+        // window.history.replaceState(state, '', from);
+    // }
 
-  page.back = function(path, state) {
+    history.replaceState(state, document.title, hashbang && from !== '/' ? '#!' + from : from);
+    // history.pushState(state, document.title, hashbang && from !== '/' ? '#!' + from : from);
+};
+
+/**
+ * Goes back in the history
+ * Back should always let the current route push state and then go back.
+ *
+ * @param {string} path - fallback path to go back if no more history exists, if undefined defaults to page.base
+ * @param {Object=} state
+ * @api public
+ */
+
+page.back = function (path, state) {
     if (page.len > 0) {
-      // this may need more testing to see if all browsers
-      // wait for the next tick to go back in history
-      history.back();
-      page.len--;
+        // this may need more testing to see if all browsers
+        // wait for the next tick to go back in history
+        history.back();
+        page.len--;
     } else if (path) {
-      setTimeout(function() {
-        page.show(path, state);
-      });
-    }else{
-      setTimeout(function() {
-        page.show(base, state);
-      });
+        setTimeout(function () {
+            page.show(path, state);
+        });
+    } else {
+        setTimeout(function () {
+            page.show(base, state);
+        });
     }
-  };
+};
 
 
-  /**
-   * Register route to redirect from one path to other
-   * or just redirect to another route
-   *
-   * @param {string} from - if param 'to' is undefined redirects to 'from'
-   * @param {string=} to
-   * @api public
-   */
-  page.redirect = function(from, to) {
+/**
+ * Register route to redirect from one path to other
+ * or just redirect to another route
+ *
+ * @param {string} from - if param 'to' is undefined redirects to 'from'
+ * @param {string=} to
+ * @api public
+ */
+page.redirect = function (from, to) {
     // Define route from a path to another
     if ('string' === typeof from && 'string' === typeof to) {
-      page(from, function(e) {
-        setTimeout(function() {
-          page.replace(/** @type {!string} */ (to));
-        }, 0);
-      });
+        page(from, function (e) {
+            setTimeout(function () {
+                page.replace(/** @type {!string} */ (to));
+            }, 0);
+        });
     }
 
     // Wait for the push state and replace it with another
     if ('string' === typeof from && 'undefined' === typeof to) {
-      setTimeout(function() {
-        page.replace(from);
-      }, 0);
+        setTimeout(function () {
+            page.replace(from);
+        }, 0);
     }
-  };
+};
 
-  /**
-   * Replace `path` with optional `state` object.
-   *
-   * @param {string} path
-   * @param {Object=} state
-   * @param {boolean=} init
-   * @param {boolean=} dispatch
-   * @return {!Context}
-   * @api public
-   */
+/**
+ * Replace `path` with optional `state` object.
+ *
+ * @param {string} path
+ * @param {Object=} state
+ * @param {boolean=} init
+ * @param {boolean=} dispatch
+ * @return {!Context}
+ * @api public
+ */
 
 
-  page.replace = function(path, state, init, dispatch) {
-    var ctx = new Context(path, state);
+page.replace = function (path, state, init, dispatch) {
+    var from = (hashbang && ~location.hash.indexOf('#!')) ? location.hash.substr(2) + location.search : location.pathname + location.search + location.hash;
+    var emited = page.event.emit('beforeChange');
+    if (emited === false) {
+        page.cancel(path, state, page.current);
+        return;
+    }
+
+    var ctx = new Context(path, state, from);
     page.current = ctx.path;
     ctx.init = init;
     ctx.save(); // save before dispatching, which may redirect
     if (false !== dispatch) page.dispatch(ctx);
     return ctx;
-  };
+};
 
-  /**
-   * Dispatch the given `ctx`.
-   *
-   * @param {Context} ctx
-   * @api private
-   */
-  page.dispatch = function(ctx) {
+/**
+ * Dispatch the given `ctx`.
+ *
+ * @param {Context} ctx
+ * @api private
+ */
+page.dispatch = function (ctx) {
     var prev = prevContext,
-      i = 0,
-      j = 0;
+        i = 0,
+        j = 0;
 
     prevContext = ctx;
 
     function nextExit() {
-      var fn = page.exits[j++];
-      if (!fn) return nextEnter();
-      fn(prev, nextExit);
+        var fn = page.exits[j++];
+        if (!fn) return nextEnter();
+        fn(prev, nextExit);
     }
 
     function nextEnter() {
-      var fn = page.callbacks[i++];
+        var fn = page.callbacks[i++];
 
-      if (ctx.path !== page.current) {
-        ctx.handled = false;
-        return;
-      }
-      if (!fn) return unhandled(ctx);
-      fn(ctx, nextEnter);
+        if (ctx.path !== page.current) {
+            ctx.handled = false;
+            return;
+        }
+        if (!fn) return unhandled(ctx);
+        fn(ctx, nextEnter);
     }
 
     if (prev) {
-      nextExit();
+        nextExit();
     } else {
-      nextEnter();
+        nextEnter();
     }
-  };
+};
 
-  /**
-   * Unhandled `ctx`. When it's not the initial
-   * popstate then redirect. If you wish to handle
-   * 404s on your own use `page('*', callback)`.
-   *
-   * @param {Context} ctx
-   * @api private
-   */
-  function unhandled(ctx) {
+/**
+ * Unhandled `ctx`. When it's not the initial
+ * popstate then redirect. If you wish to handle
+ * 404s on your own use `page('*', callback)`.
+ *
+ * @param {Context} ctx
+ * @api private
+ */
+function unhandled(ctx) {
     if (ctx.handled) return;
     var current;
 
     if (hashbang) {
-      current = base + location.hash.replace('#!', '');
+        current = base + location.hash.replace('#!', '');
     } else {
-      current = location.pathname + location.search;
+        current = location.pathname + location.search;
     }
 
     if (current === ctx.canonicalPath) return;
     page.stop();
     ctx.handled = false;
     location.href = ctx.canonicalPath;
-  }
+}
 
-  /**
-   * Register an exit route on `path` with
-   * callback `fn()`, which will be called
-   * on the previous context when a new
-   * page is visited.
-   */
-  page.exit = function(path, fn) {
+/**
+ * Register an exit route on `path` with
+ * callback `fn()`, which will be called
+ * on the previous context when a new
+ * page is visited.
+ */
+page.exit = function (path, fn) {
     if (typeof path === 'function') {
-      return page.exit('*', path);
+        return page.exit('*', path);
     }
 
     var route = new Route(path);
     for (var i = 1; i < arguments.length; ++i) {
-      page.exits.push(route.middleware(arguments[i]));
+        page.exits.push(route.middleware(arguments[i]));
     }
-  };
+};
 
-  /**
-   * Remove URL encoding from the given `str`.
-   * Accommodates whitespace in both x-www-form-urlencoded
-   * and regular percent-encoded form.
-   *
-   * @param {string} val - URL component to decode
-   */
-  function decodeURLEncodedURIComponent(val) {
-    if (typeof val !== 'string') { return val; }
+/**
+ * Remove URL encoding from the given `str`.
+ * Accommodates whitespace in both x-www-form-urlencoded
+ * and regular percent-encoded form.
+ *
+ * @param {string} val - URL component to decode
+ */
+function decodeURLEncodedURIComponent(val) {
+    if (typeof val !== 'string') {
+        return val;
+    }
     return decodeURLComponents ? decodeURIComponent(val.replace(/\+/g, ' ')) : val;
-  }
+}
 
-  /**
-   * Initialize a new "request" `Context`
-   * with the given `path` and optional initial `state`.
-   *
-   * @constructor
-   * @param {string} path
-   * @param {Object=} state
-   * @api public
-   */
+/**
+ * Initialize a new "request" `Context`
+ * with the given `path` and optional initial `state`.
+ *
+ * @constructor
+ * @param {string} path
+ * @param {Object=} state
+ * @api public
+ */
 
-  function Context(path, state) {
+function Context(path, state, from) {
     if ('/' === path[0] && 0 !== path.indexOf(base)) path = base + (hashbang ? '#!' : '') + path;
     var i = path.indexOf('?');
 
@@ -406,155 +430,157 @@
     this.querystring = ~i ? decodeURLEncodedURIComponent(path.slice(i + 1)) : '';
     this.pathname = decodeURLEncodedURIComponent(~i ? path.slice(0, i) : path);
     this.params = {};
+    this.from = from || '';
 
     // fragment
     this.hash = '';
     if (!hashbang) {
-      if (!~this.path.indexOf('#')) return;
-      var parts = this.path.split('#');
-      this.path = parts[0];
-      this.hash = decodeURLEncodedURIComponent(parts[1]) || '';
-      this.querystring = this.querystring.split('#')[0];
+        if (!~this.path.indexOf('#')) return;
+        var parts = this.path.split('#');
+        this.path = parts[0];
+        this.hash = decodeURLEncodedURIComponent(parts[1]) || '';
+        this.querystring = this.querystring.split('#')[0];
     }
-  }
+}
 
-  /**
-   * Expose `Context`.
-   */
+/**
+ * Expose `Context`.
+ */
 
-  page.Context = Context;
+page.Context = Context;
 
-  /**
-   * Push state.
-   *
-   * @api private
-   */
+/**
+ * Push state.
+ *
+ * @api private
+ */
 
-  Context.prototype.pushState = function() {
+Context.prototype.pushState = function () {
     page.len++;
     history.pushState(this.state, this.title, hashbang && this.path !== '/' ? '#!' + this.path : this.canonicalPath);
-  };
+};
 
-  /**
-   * Save the context state.
-   *
-   * @api public
-   */
+/**
+ * Save the context state.
+ *
+ * @api public
+ */
 
-  Context.prototype.save = function() {
+Context.prototype.save = function () {
     history.replaceState(this.state, this.title, hashbang && this.path !== '/' ? '#!' + this.path : this.canonicalPath);
-  };
+};
 
-  /**
-   * Initialize `Route` with the given HTTP `path`,
-   * and an array of `callbacks` and `options`.
-   *
-   * Options:
-   *
-   *   - `sensitive`    enable case-sensitive routes
-   *   - `strict`       enable strict matching for trailing slashes
-   *
-   * @constructor
-   * @param {string} path
-   * @param {Object=} options
-   * @api private
-   */
+/**
+ * Initialize `Route` with the given HTTP `path`,
+ * and an array of `callbacks` and `options`.
+ *
+ * Options:
+ *
+ *   - `sensitive`    enable case-sensitive routes
+ *   - `strict`       enable strict matching for trailing slashes
+ *
+ * @constructor
+ * @param {string} path
+ * @param {Object=} options
+ * @api private
+ */
 
-  function Route(path, options) {
+function Route(path, options) {
     options = options || {};
     this.path = (path === '*') ? '(.*)' : path;
     this.method = 'GET';
     this.regexp = pathtoRegexp(this.path,
-      this.keys = [],
-      options);
-  }
+        this.keys = [],
+        options);
+}
 
-  /**
-   * Expose `Route`.
-   */
+/**
+ * Expose `Route`.
+ */
 
-  page.Route = Route;
+page.Route = Route;
 
-  /**
-   * Return route middleware with
-   * the given callback `fn()`.
-   *
-   * @param {Function} fn
-   * @return {Function}
-   * @api public
-   */
+/**
+ * Return route middleware with
+ * the given callback `fn()`.
+ *
+ * @param {Function} fn
+ * @return {Function}
+ * @api public
+ */
 
-  Route.prototype.middleware = function(fn) {
+Route.prototype.middleware = function (fn) {
     var self = this;
-    return function(ctx, next) {
-      if (self.match(ctx.path, ctx.params)) return fn(ctx, next);
-      next();
+    return function (ctx, next) {
+        if (self.match(ctx.path, ctx.params)) return fn(ctx, next);
+        next();
     };
-  };
+};
 
-  /**
-   * Check if this route matches `path`, if so
-   * populate `params`.
-   *
-   * @param {string} path
-   * @param {Object} params
-   * @return {boolean}
-   * @api private
-   */
+/**
+ * Check if this route matches `path`, if so
+ * populate `params`.
+ *
+ * @param {string} path
+ * @param {Object} params
+ * @return {boolean}
+ * @api private
+ */
 
-  Route.prototype.match = function(path, params) {
+Route.prototype.match = function (path, params) {
     var keys = this.keys,
-      qsIndex = path.indexOf('?'),
-      pathname = ~qsIndex ? path.slice(0, qsIndex) : path,
-      m = this.regexp.exec(decodeURIComponent(pathname));
+        qsIndex = path.indexOf('?'),
+        pathname = ~qsIndex ? path.slice(0, qsIndex) : path,
+        m = this.regexp.exec(decodeURIComponent(pathname));
 
     if (!m) return false;
 
     for (var i = 1, len = m.length; i < len; ++i) {
-      var key = keys[i - 1];
-      var val = decodeURLEncodedURIComponent(m[i]);
-      if (val !== undefined || !(hasOwnProperty.call(params, key.name))) {
-        params[key.name] = val;
-      }
+        var key = keys[i - 1];
+        var val = decodeURLEncodedURIComponent(m[i]);
+        if (val !== undefined || !(hasOwnProperty.call(params, key.name))) {
+            params[key.name] = val;
+        }
     }
 
     return true;
-  };
+};
 
 
-  /**
-   * Handle "populate" events.
-   */
+/**
+ * Handle "populate" events.
+ */
 
-  var onpopstate = (function () {
+var onpopstate = (function () {
     var loaded = false;
     if ('undefined' === typeof window) {
-      return;
+        return;
     }
     if (document.readyState === 'complete') {
-      loaded = true;
+        loaded = true;
     } else {
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          loaded = true;
-        }, 0);
-      });
+        window.addEventListener('load', function () {
+            setTimeout(function () {
+                loaded = true;
+            }, 0);
+        });
     }
     return function onpopstate(e) {
-      if (!loaded) return;
-      if (e.state) {
-        var path = e.state.path;
-        page.replace(path, e.state);
-      } else {
-        page.show(location.pathname + location.hash, undefined, undefined, false);
-      }
-    };
-  })();
-  /**
-   * Handle "click" events.
-   */
+        if (!loaded) return;
 
-  function onclick(e) {
+        if (e.state) {
+            var path = e.state.path;
+            page.replace(path, e.state);
+        } else {
+            page.show(location.pathname + location.hash, undefined, undefined, false);
+        }
+    };
+})();
+/**
+ * Handle "click" events.
+ */
+
+function onclick(e) {
 
     if (1 !== which(e)) return;
 
@@ -562,13 +588,11 @@
     if (e.defaultPrevented) return;
 
 
-
     // ensure link
     // use shadow dom when available
     var el = e.path ? e.path[0] : e.target;
     while (el && 'A' !== el.nodeName) el = el.parentNode;
     if (!el || 'A' !== el.nodeName) return;
-
 
 
     // Ignore if tag has
@@ -581,7 +605,6 @@
     if (!hashbang && el.pathname === location.pathname && (el.hash || '#' === link)) return;
 
 
-
     // Check for mailto: in the href
     if (link && link.indexOf('mailto:') > -1) return;
 
@@ -592,20 +615,19 @@
     if (!sameOrigin(el.href)) return;
 
 
-
     // rebuild path
     var path = el.pathname + el.search + (el.hash || '');
 
     // strip leading "/[drive letter]:" on NW.js on Windows
     if (typeof process !== 'undefined' && path.match(/^\/[a-zA-Z]:\//)) {
-      path = path.replace(/^\/[a-zA-Z]:\//, '/');
+        path = path.replace(/^\/[a-zA-Z]:\//, '/');
     }
 
     // same page
     var orig = path;
 
     if (path.indexOf(base) === 0) {
-      path = path.substr(base.length);
+        path = path.substr(base.length);
     }
 
     if (hashbang) path = path.replace('#!', '');
@@ -613,134 +635,307 @@
     if (base && orig === path) return;
 
     e.preventDefault();
+
     page.show(orig);
-  }
+}
 
-  /**
-   * Event button.
-   */
+/**
+ * Event button.
+ */
 
-  function which(e) {
+function which(e) {
     e = e || window.event;
     return null === e.which ? e.button : e.which;
-  }
+}
 
-  /**
-   * Check if `href` is the same origin.
-   */
+/**
+ * Check if `href` is the same origin.
+ */
 
-  function sameOrigin(href) {
+function sameOrigin(href) {
     var origin = location.protocol + '//' + location.hostname;
     if (location.port) origin += ':' + location.port;
     return (href && (0 === href.indexOf(origin)));
-  }
+}
 
-  page.sameOrigin = sameOrigin;
+page.sameOrigin = sameOrigin;
 
 }).call(this,require('_process'))
-},{"_process":5,"micro-event":3,"path-to-regexp":4}],2:[function(require,module,exports){
+},{"_process":6,"history":2,"path-to-regexp":5,"respondent-emitter":7}],2:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+   value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _respondentEmitter = require('respondent-emitter');
+
+var _respondentEmitter2 = _interopRequireDefault(_respondentEmitter);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var OriginHistory = function (_Event) {
+   _inherits(OriginHistory, _Event);
+
+   function OriginHistory() {
+      _classCallCheck(this, OriginHistory);
+
+      return _possibleConstructorReturn(this, (OriginHistory.__proto__ || Object.getPrototypeOf(OriginHistory)).apply(this, arguments));
+   }
+
+   _createClass(OriginHistory, [{
+      key: 'custructor',
+      value: function custructor() {
+         var _this2 = this;
+
+         var history = window.history;
+
+         Object.keys(history.__proto__).forEach(function (methods) {
+            if (typeof history[methods] === 'function') {
+               _this2[methods] = history[methods].bind(history);
+            }
+         });
+      }
+   }]);
+
+   return OriginHistory;
+}(_respondentEmitter2.default);
+
+var store = [];
+var current = 0;
+
+var History = function (_OriginHistory) {
+   _inherits(History, _OriginHistory);
+
+   function History(options) {
+      _classCallCheck(this, History);
+
+      var _this3 = _possibleConstructorReturn(this, (History.__proto__ || Object.getPrototypeOf(History)).call(this));
+
+      _this3.options = _extends({
+         base: '/',
+         hashbang: false
+      }, options);
+      return _this3;
+   }
+
+   _createClass(History, [{
+      key: 'back',
+      value: function back() {
+         var from = store[current];
+         var to = store[current - 1] || null;
+
+         if (this.emit('beforeNavigate', from, to) !== false) {
+            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'back', this).call(this);
+            current -= 1;
+         }
+         this.emit('afterNavigate');
+      }
+   }, {
+      key: 'forward',
+      value: function forward() {
+         var from = store[current];
+         var to = store[current + 1] || null;
+
+         if (this.emit('beforeNavigate', from, to) !== false) {
+            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'forward', this).call(this);
+            current += 1;
+         }
+         this.emit('afterNavigate');
+      }
+   }, {
+      key: 'go',
+      value: function go() {
+         var number = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+
+         number = parseInt(number);
+
+         if (number === 0) {
+            return;
+         } else {
+            var toIndex = current + number;
+            var from = store[current];
+            var to = store[toIndex];
+
+            if (this.emit('beforeNavigate', from, to) !== false) {
+               _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'go', this).call(this, number);
+               current = toIndex;
+               this.emit('afterNavigate');
+            }
+         }
+      }
+   }, {
+      key: 'pushState',
+      value: function pushState(state, title, url) {
+         url = this.formatPath(url);
+
+         if (this.emit('beforeNavigate') !== false) {
+            store.length = current;
+
+            store.push({
+               state: state,
+               title: title,
+               url: url
+            });
+            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'pushState', this).call(this, state, title, url);
+            current = store.length;
+            this.emit('afterNavigate');
+         }
+      }
+   }, {
+      key: 'replaceState',
+      value: function replaceState(state, title, url) {
+         url = this.formatPath(url);
+
+         if (this.emit('beforeNavigate') !== false) {
+            store.length = current;
+
+            store[current] = {
+               state: state,
+               title: title,
+               url: url
+            };
+            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'replaceState', this).call(this, state, title, url);
+            this.emit('afterNavigate');
+         }
+      }
+   }, {
+      key: 'getHistoryIndexByUrl',
+      value: function getHistoryIndexByUrl(url) {
+         var index = void 0;
+         store.forEach(function (state, i) {
+            if (state.url === url) {
+               index = i;
+               return false;
+            }
+         });
+      }
+   }, {
+      key: 'formatPath',
+      value: function formatPath(path) {
+         path = path.replace(this.options.base, '') || '/';
+
+         return (this.options.hashbang ? '#!' : '') + path;
+      }
+   }]);
+
+   return History;
+}(OriginHistory);
+
+exports.default = History;
+
+},{"respondent-emitter":3}],3:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Events = function () {
+	function Events(type) {
+		_classCallCheck(this, Events);
+
+		this.eventStore = {};
+	}
+
+	_createClass(Events, [{
+		key: 'on',
+		value: function on(type, listener) {
+			var namespace = type.split('.');
+			this.eventStore[type] = this.eventStore[type] || [];
+			listener.namespace = type;
+
+			this.eventStore[namespace[0]].push(listener);
+		}
+	}, {
+		key: 'once',
+		value: function once(type, listener) {
+			listener.once = true;
+			this.on(type, listener);
+		}
+	}, {
+		key: 'off',
+		value: function off(type, listener) {
+			var _this = this;
+
+			Object.keys(this.eventStore).forEach(function (eventType) {
+
+				// 不含 namespace
+				if (type === eventType && !listener) {
+					delete _this.eventStore[eventType];
+					return;
+				} else {
+					var listeners = _this.eventStore[eventType];
+
+					listeners.forEach(function (fn, i) {
+						var isMatch = fn.namespace.indexOf(type) !== -1;
+
+						if (isMatch && (!listener || fn === listener)) {
+							listeners[i] = null;
+						}
+					});
+
+					_this.eventStore[eventType] = listeners.filter(function (fn) {
+						return typeof fn === 'function';
+					});
+				}
+			});
+		}
+	}, {
+		key: 'emit',
+		value: function emit(type) {
+			var _this2 = this;
+
+			var result = void 0;
+
+			Object.keys(this.eventStore).forEach(function (eventType) {
+				if (eventType.indexOf(type) !== -1) {
+					var listeners = _this2.eventStore[eventType];
+
+					listeners.forEach(function (fn, i) {
+						if (typeof fn === 'function') {
+							var res = fn.apply(_this2);
+
+							result = result === false ? false : res;
+							if (fn && fn.once) {
+								_this2.off(type, fn);
+							}
+						}
+					});
+				}
+			});
+
+			return result;
+		}
+	}]);
+
+	return Events;
+}();
+
+exports.default = Events;
+
+},{}],4:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],3:[function(require,module,exports){
-(function() {
-    function Emitter() {
-        var e = Object.create(emitter);
-        e.events = {};
-        return e;
-    }
-
-    function Event(type) {
-        this.type = type;
-        this.timeStamp = new Date();
-    }
-
-    var emitter = {};
-
-    emitter.on = function(type, handler) {
-        if (this.events.hasOwnProperty(type)) {
-            this.events[type].push(handler);
-        } else {
-            this.events[type] = [handler];
-        }
-        return this;
-    };
-
-    emitter.off = function(type, handler) {
-        if (arguments.length === 0) {
-            return this._offAll();
-        }
-        if (handler === undefined) {
-            return this._offByType(type);
-        }
-        return this._offByHandler(type, handler);
-    };
-
-    emitter.trigger = function(event, args) {
-        if (!(event instanceof Event)) {
-            event = new Event(event);
-        }
-        return this._dispatch(event, args);
-    };
-
-    emitter._dispatch = function(event, args) {
-        if (!this.events.hasOwnProperty(event.type)) return;
-        args = args || [];
-        args.unshift(event);
-
-        var handlers = this.events[event.type] || [];
-        handlers.forEach(handler => handler.apply(null, args));
-        return this;
-    };
-
-    emitter._offByHandler = function(type, handler) {
-        if (!this.events.hasOwnProperty(type)) return;
-        var i = this.events[type].indexOf(handler);
-        if (i > -1) {
-            this.events[type].splice(i, 1);
-        }
-        return this;
-    };
-
-    emitter._offByType = function(type) {
-        if (this.events.hasOwnProperty(type)) {
-            delete this.events[type];
-        }
-        return this;
-    };
-
-    emitter._offAll = function() {
-        this.events = {};
-        return this;
-    };
-
-    Emitter.Event = Event;
-
-    Emitter.mixin = function(obj, arr){
-        var emitter = new Emitter();
-        arr.map(function(name){
-            obj[name] = function(){
-                return emitter[name].apply(emitter, arguments);
-            };
-        });
-    };
-
-    // CommonJS
-    if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-        module.exports = Emitter;
-    }
-    // Browser
-    else if (typeof define === 'function' && define.amd) {
-        define('Emitter', [], function() {
-            return Emitter;
-        });
-    } else {
-        window.Emitter = Emitter;
-    }
-})();
-
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 var isarray = require('isarray')
 
 /**
@@ -1132,7 +1327,7 @@ function pathToRegexp (path, keys, options) {
   return stringToRegexp(path, keys, options)
 }
 
-},{"isarray":2}],5:[function(require,module,exports){
+},{"isarray":4}],6:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -1220,5 +1415,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}]},{},[1])(1)
+},{}],7:[function(require,module,exports){
+module.exports=require(3)
+},{"/Users/colin/Projects/github/page.js/node_modules/history/node_modules/respondent-emitter/index.js":3}]},{},[1])(1)
 });
