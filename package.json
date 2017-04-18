@@ -20,9 +20,8 @@
     "make": "browserify index.js --standalone page -o page.js"
   },
   "dependencies": {
-    "history": "git+https://github.com/luozhihua/history.git",
-    "path-to-regexp": "~1.2.1",
-    "respondent-emitter": "git+https://github.com/luozhihua/respondent-emitter.git"
+    "respondent-emitter": "*",
+    "path-to-regexp": "~1.2.1"
   },
   "devDependencies": {
     "browserify": "^6.3.2",

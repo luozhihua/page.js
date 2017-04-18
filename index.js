@@ -7,11 +7,8 @@
  */
 
 var pathtoRegexp = require('path-to-regexp');
-var Event = require('respondent-emitter').default;
 var History = require('history').default;
-
-window._history = window.history;
-window.his = new History();
+var history = new History();
 
 /**
  * Module exports.
@@ -294,8 +291,6 @@ page.redirect = function (from, to) {
  * @return {!Context}
  * @api public
  */
-
-
 page.replace = function (path, state, init, dispatch) {
     var from = (hashbang && ~location.hash.indexOf('#!')) ? location.hash.substr(2) + location.search : location.pathname + location.search + location.hash;
     var emited = page.event.emit('beforeChange');
