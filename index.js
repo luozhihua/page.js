@@ -7,6 +7,7 @@
  */
 
 var pathtoRegexp = require('path-to-regexp');
+var Event = require('respondent-emitter').default;
 var History = require('history').default;
 var history = new History();
 
