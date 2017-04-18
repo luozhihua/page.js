@@ -10,8 +10,8 @@
 
 var pathtoRegexp = require('path-to-regexp');
 var Event = require('respondent-emitter').default;
-var History = require('history').default;
-var history = new History();
+// var History = require('history').default;
+// var history = new History();
 
 /**
  * Module exports.
@@ -657,281 +657,12 @@ function sameOrigin(href) {
 page.sameOrigin = sameOrigin;
 
 }).call(this,require('_process'))
-},{"_process":6,"history":2,"path-to-regexp":5,"respondent-emitter":7}],2:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-   value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _respondentEmitter = require('respondent-emitter');
-
-var _respondentEmitter2 = _interopRequireDefault(_respondentEmitter);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var OriginHistory = function (_Event) {
-   _inherits(OriginHistory, _Event);
-
-   function OriginHistory() {
-      _classCallCheck(this, OriginHistory);
-
-      return _possibleConstructorReturn(this, (OriginHistory.__proto__ || Object.getPrototypeOf(OriginHistory)).apply(this, arguments));
-   }
-
-   _createClass(OriginHistory, [{
-      key: 'custructor',
-      value: function custructor() {
-         var _this2 = this;
-
-         var history = window.history;
-
-         Object.keys(history.__proto__).forEach(function (methods) {
-            if (typeof history[methods] === 'function') {
-               _this2[methods] = history[methods].bind(history);
-            }
-         });
-      }
-   }]);
-
-   return OriginHistory;
-}(_respondentEmitter2.default);
-
-var store = [];
-var current = 0;
-
-var History = function (_OriginHistory) {
-   _inherits(History, _OriginHistory);
-
-   function History(options) {
-      _classCallCheck(this, History);
-
-      var _this3 = _possibleConstructorReturn(this, (History.__proto__ || Object.getPrototypeOf(History)).call(this));
-
-      _this3.options = _extends({
-         base: '/',
-         hashbang: false
-      }, options);
-      return _this3;
-   }
-
-   _createClass(History, [{
-      key: 'back',
-      value: function back() {
-         var from = store[current];
-         var to = store[current - 1] || null;
-
-         if (this.emit('beforeNavigate', from, to) !== false) {
-            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'back', this).call(this);
-            current -= 1;
-         }
-         this.emit('afterNavigate');
-      }
-   }, {
-      key: 'forward',
-      value: function forward() {
-         var from = store[current];
-         var to = store[current + 1] || null;
-
-         if (this.emit('beforeNavigate', from, to) !== false) {
-            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'forward', this).call(this);
-            current += 1;
-         }
-         this.emit('afterNavigate');
-      }
-   }, {
-      key: 'go',
-      value: function go() {
-         var number = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
-
-         number = parseInt(number);
-
-         if (number === 0) {
-            return;
-         } else {
-            var toIndex = current + number;
-            var from = store[current];
-            var to = store[toIndex];
-
-            if (this.emit('beforeNavigate', from, to) !== false) {
-               _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'go', this).call(this, number);
-               current = toIndex;
-               this.emit('afterNavigate');
-            }
-         }
-      }
-   }, {
-      key: 'pushState',
-      value: function pushState(state, title, url) {
-         url = this.formatPath(url);
-
-         if (this.emit('beforeNavigate') !== false) {
-            store.length = current;
-
-            store.push({
-               state: state,
-               title: title,
-               url: url
-            });
-            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'pushState', this).call(this, state, title, url);
-            current = store.length;
-            this.emit('afterNavigate');
-         }
-      }
-   }, {
-      key: 'replaceState',
-      value: function replaceState(state, title, url) {
-         url = this.formatPath(url);
-
-         if (this.emit('beforeNavigate') !== false) {
-            store.length = current;
-
-            store[current] = {
-               state: state,
-               title: title,
-               url: url
-            };
-            _get(History.prototype.__proto__ || Object.getPrototypeOf(History.prototype), 'replaceState', this).call(this, state, title, url);
-            this.emit('afterNavigate');
-         }
-      }
-   }, {
-      key: 'getHistoryIndexByUrl',
-      value: function getHistoryIndexByUrl(url) {
-         var index = void 0;
-         store.forEach(function (state, i) {
-            if (state.url === url) {
-               index = i;
-               return false;
-            }
-         });
-      }
-   }, {
-      key: 'formatPath',
-      value: function formatPath(path) {
-         path = path.replace(this.options.base, '') || '/';
-
-         return (this.options.hashbang ? '#!' : '') + path;
-      }
-   }]);
-
-   return History;
-}(OriginHistory);
-
-exports.default = History;
-
-},{"respondent-emitter":3}],3:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Events = function () {
-	function Events(type) {
-		_classCallCheck(this, Events);
-
-		this.eventStore = {};
-	}
-
-	_createClass(Events, [{
-		key: 'on',
-		value: function on(type, listener) {
-			var namespace = type.split('.');
-			this.eventStore[type] = this.eventStore[type] || [];
-			listener.namespace = type;
-
-			this.eventStore[namespace[0]].push(listener);
-		}
-	}, {
-		key: 'once',
-		value: function once(type, listener) {
-			listener.once = true;
-			this.on(type, listener);
-		}
-	}, {
-		key: 'off',
-		value: function off(type, listener) {
-			var _this = this;
-
-			Object.keys(this.eventStore).forEach(function (eventType) {
-
-				// 不含 namespace
-				if (type === eventType && !listener) {
-					delete _this.eventStore[eventType];
-					return;
-				} else {
-					var listeners = _this.eventStore[eventType];
-
-					listeners.forEach(function (fn, i) {
-						var isMatch = fn.namespace.indexOf(type) !== -1;
-
-						if (isMatch && (!listener || fn === listener)) {
-							listeners[i] = null;
-						}
-					});
-
-					_this.eventStore[eventType] = listeners.filter(function (fn) {
-						return typeof fn === 'function';
-					});
-				}
-			});
-		}
-	}, {
-		key: 'emit',
-		value: function emit(type) {
-			var _this2 = this;
-
-			var result = void 0;
-
-			Object.keys(this.eventStore).forEach(function (eventType) {
-				if (eventType.indexOf(type) !== -1) {
-					var listeners = _this2.eventStore[eventType];
-
-					listeners.forEach(function (fn, i) {
-						if (typeof fn === 'function') {
-							var res = fn.apply(_this2);
-
-							result = result === false ? false : res;
-							if (fn && fn.once) {
-								_this2.off(type, fn);
-							}
-						}
-					});
-				}
-			});
-
-			return result;
-		}
-	}]);
-
-	return Events;
-}();
-
-exports.default = Events;
-
-},{}],4:[function(require,module,exports){
+},{"_process":4,"path-to-regexp":3,"respondent-emitter":5}],2:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],5:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 var isarray = require('isarray')
 
 /**
@@ -1323,7 +1054,7 @@ function pathToRegexp (path, keys, options) {
   return stringToRegexp(path, keys, options)
 }
 
-},{"isarray":4}],6:[function(require,module,exports){
+},{"isarray":2}],4:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -1411,7 +1142,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
